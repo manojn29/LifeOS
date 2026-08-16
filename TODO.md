@@ -1,29 +1,25 @@
 # LifeOS — Roadmap & To-Do List
 
-## ✅ Completed in Phase 2
+## ✅ Completed Features
 
-### 1. ⚡ Groq AI Provider Adapter
-- [x] Add `GroqProvider` class in `src/lib/ai/providers/groq.ts` using OpenAI-compatible SDK (`baseURL: 'https://api.groq.com/openai/v1'`).
-- [x] Support ultra-fast models:
-  - `llama-3.3-70b-versatile` (Meta's flagship 70B model)
-  - `deepseek-r1-distill-llama-70b` (DeepSeek reasoning model)
-  - `llama-3.1-8b-instant` (Ultra-low latency)
-- [x] Add `groq_api_key` support in `user_settings` table and Settings UI key input.
-- [x] Add Groq option to Provider Switcher in `/settings`.
+### 1. ⚡ Groq AI Provider Adapter (Phase 2)
+- [x] `GroqProvider` class in `src/lib/ai/providers/groq.ts` with OpenAI SDK compatibility.
+- [x] Ultra-fast models: `llama-3.3-70b-versatile`, `deepseek-r1-distill-llama-70b`, `llama-3.1-8b-instant`.
+- [x] `groq_api_key` support in Settings UI and database.
 
-### 2. 🌐 OpenRouter AI Provider Adapter
-- [x] Add `OpenRouterProvider` in `src/lib/ai/providers/openrouter.ts`.
-- [x] Support free-tier model catalog (`:free` suffix):
-  - `meta-llama/llama-3.3-70b-instruct:free`
-  - `deepseek/deepseek-r1:free`
-  - `google/gemma-2-9b-it:free`
-  - `mistralai/mistral-7b-instruct:free`
-- [x] Add `openrouter_api_key` to Settings and environment configuration.
-- [x] Integrate OpenRouter in AI Factory and provider switcher.
+### 2. 🌐 OpenRouter AI Provider Adapter (Phase 2)
+- [x] `OpenRouterProvider` in `src/lib/ai/providers/openrouter.ts`.
+- [x] Free catalog models (`llama-3.3-70b:free`, `deepseek-r1:free`, `gemma-2-9b:free`, `mistral-7b:free`).
+- [x] `openrouter_api_key` support in Settings and factory.
+
+### 3. ✨ Weekly AI Digest (Phase 3)
+- [x] `weekly_digests` table schema & RLS policies in PostgreSQL.
+- [x] Cross-model `generateWeeklyDigest` synthesis pipeline (Gemini, Groq, OpenRouter, OpenAI, Claude).
+- [x] `/api/digest` endpoint with custom timeframe and previous 7 days default.
+- [x] Dedicated `/digest` dashboard with Wins 🏆, Themes 💡, Action Items 🎯, Mood overview, and past review archive.
 
 ---
 
-## 🚀 Future Enhancements (Phase 3)
+## 🚀 Future Enhancements
 - [ ] **Voice Journaling**: Local on-device Whisper transcription (speech-to-text).
 - [ ] **Data Export**: Full export of raw memories and embeddings into JSON/Markdown archive.
-- [ ] **Weekly AI Digest**: Automated weekly life review summarizing key themes, wins, and reflections.

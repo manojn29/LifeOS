@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, CheckSquare, MessageSquare, Settings, LogOut, User } from 'lucide-react';
+import { BookOpen, CheckSquare, MessageSquare, Sparkles, Settings, LogOut, User } from 'lucide-react';
 import Image from 'next/image';
 import { createClient } from '@/lib/db/supabase-browser';
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { name: 'Journal', href: '/journal', icon: BookOpen },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'AI Chat', href: '/chat', icon: MessageSquare },
+  { name: 'Digest', href: '/digest', icon: Sparkles },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

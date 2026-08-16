@@ -1,5 +1,5 @@
 import { createServerSupabaseClient, getAuthenticatedUser } from './supabase-server';
-import { JournalEntry, TaskList, Task, UserSettings, AIConversation, ConversationMessage, MatchedJournalEntry, AIReasoningMode } from '@/types/database';
+import { JournalEntry, TaskList, Task, UserSettings, AIConversation, ConversationMessage, MatchedJournalEntry, AIReasoningMode, WeeklyDigest } from '@/types/database';
 
 // In-memory local fallback store for seamless zero-config local testing and offline readiness
 const globalStore = globalThis as unknown as {
@@ -11,6 +11,7 @@ const globalStore = globalThis as unknown as {
     tasks: Map<string, Task[]>;
     conversations: Map<string, AIConversation[]>;
     messages: Map<string, ConversationMessage[]>;
+    digests: Map<string, WeeklyDigest[]>;
   };
 };
 
@@ -23,6 +24,7 @@ if (!globalStore._lifeos_memoryStore) {
     tasks: new Map<string, Task[]>(),
     conversations: new Map<string, AIConversation[]>(),
     messages: new Map<string, ConversationMessage[]>(),
+    digests: new Map<string, WeeklyDigest[]>(),
   };
 }
 
@@ -706,5 +708,128 @@ export const dbRepo = {
       totalCount: total,
       hasMore: offset + limit < total,
     };
+  },
+
+  // WEEKLY DIGESTS
+  async getJournalEntriesInRange(userId: string, startDate: string, endDate: string): Promise<JournalEntry[]> {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const startIso = new Date(startDate).toISOString();
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('entry_date', startIso)
+        .lte('entry_date', end.toISOString())
+        .order('entry_date', { ascending: true });
+
+      if (!error && data) return data as JournalEntry[];
+    } catch (err) {
+      console.warn('Supabase getJournalEntriesInRange fallback:', err);
+    }
+
+    const entries = memoryStore.journal.get(userId) || [];
+    const startT = new Date(startDate).getTime();
+    const endT = new Date(endDate).setHours(23, 59, 59, 999);
+    return entries.filter((e) => {
+      const t = new Date(e.entry_date).getTime();
+      return t >= startT && t <= endT;
+    });
+  },
+
+  async getCompletedTasksInRange(userId: string, startDate: string, endDate: string): Promise<Task[]> {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const startIso = new Date(startDate).toISOString();
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_completed', true)
+        .gte('updated_at', startIso)
+        .lte('updated_at', end.toISOString());
+
+      if (!error && data) return data as Task[];
+    } catch (err) {
+      console.warn('Supabase getCompletedTasksInRange fallback:', err);
+    }
+
+    const tasks = memoryStore.tasks.get(userId) || [];
+    const startT = new Date(startDate).getTime();
+    const endT = new Date(endDate).setHours(23, 59, 59, 999);
+    return tasks.filter((t) => {
+      if (!t.is_completed) return false;
+      const tTime = new Date(t.updated_at).getTime();
+      return tTime >= startT && tTime <= endT;
+    });
+  },
+
+  async saveWeeklyDigest(userId: string, digest: Omit<WeeklyDigest, 'id' | 'user_id' | 'created_at'>): Promise<WeeklyDigest> {
+    const newDigest: WeeklyDigest = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      start_date: digest.start_date,
+      end_date: digest.end_date,
+      title: digest.title,
+      summary: digest.summary,
+      wins: digest.wins,
+      themes: digest.themes,
+      action_items: digest.action_items,
+      mood_overview: digest.mood_overview || null,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from('weekly_digests')
+        .insert({
+          id: newDigest.id,
+          user_id: userId,
+          start_date: newDigest.start_date,
+          end_date: newDigest.end_date,
+          title: newDigest.title,
+          summary: newDigest.summary,
+          wins: newDigest.wins,
+          themes: newDigest.themes,
+          action_items: newDigest.action_items,
+          mood_overview: newDigest.mood_overview,
+          created_at: newDigest.created_at,
+        })
+        .select()
+        .single();
+
+      if (!error && data) return data as WeeklyDigest;
+    } catch (err) {
+      console.warn('Supabase saveWeeklyDigest fallback:', err);
+    }
+
+    const digests = memoryStore.digests.get(userId) || [];
+    digests.unshift(newDigest);
+    memoryStore.digests.set(userId, digests);
+    return newDigest;
+  },
+
+  async getWeeklyDigests(userId: string): Promise<WeeklyDigest[]> {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from('weekly_digests')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) return data as WeeklyDigest[];
+    } catch (err) {
+      console.warn('Supabase getWeeklyDigests fallback:', err);
+    }
+
+    return memoryStore.digests.get(userId) || [];
   },
 };

@@ -75,4 +75,21 @@ export interface AIProvider {
     modeUsed: AIReasoningMode;
     toolActions?: ToolExecutionResult[];
   }>;
+
+  /**
+   * Generates a structured weekly life review and digest.
+   */
+  generateWeeklyDigest?(params: {
+    startDate: string;
+    endDate: string;
+    journalEntries: { date: string; text: string }[];
+    completedTasks: { title: string; listName?: string }[];
+  }): Promise<{
+    title: string;
+    summary: string;
+    wins: string[];
+    themes: string[];
+    action_items: string[];
+    mood_overview?: string;
+  }>;
 }

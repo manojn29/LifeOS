@@ -88,3 +88,17 @@ export interface MatchedJournalEntry {
   entry_date: string;
   similarity: number;
 }
+
+export interface WeeklyDigest {
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string;
+  title: string;
+  summary: string;
+  wins: string[];
+  themes: string[];
+  action_items: string[];
+  mood_overview?: string | null;
+  created_at: string;
+}

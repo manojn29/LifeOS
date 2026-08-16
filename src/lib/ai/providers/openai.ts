@@ -183,6 +183,78 @@ export class OpenAIProvider implements AIProvider {
     }
   }
 
+  async generateWeeklyDigest(params: {
+    startDate: string;
+    endDate: string;
+    journalEntries: { date: string; text: string }[];
+    completedTasks: { title: string; listName?: string }[];
+  }): Promise<{
+    title: string;
+    summary: string;
+    wins: string[];
+    themes: string[];
+    action_items: string[];
+    mood_overview?: string;
+  }> {
+    const { startDate, endDate, journalEntries, completedTasks } = params;
+
+    const entriesContext =
+      journalEntries.length > 0
+        ? journalEntries
+            .map((e, i) => `[Entry ${i + 1} (${new Date(e.date).toLocaleDateString()})]:\n${e.text}`)
+            .join('\n\n')
+        : '(No journal entries written this week.)';
+
+    const tasksContext =
+      completedTasks.length > 0
+        ? completedTasks.map((t) => `- ${t.title} (${t.listName || 'General'})`).join('\n')
+        : '(No tasks completed this week.)';
+
+    const promptPayload = `${AI_PROMPTS.WEEKLY_DIGEST}\n\nTIMEFRAME: ${startDate} to ${endDate}\n\nJOURNAL ENTRIES:\n${entriesContext}\n\nCOMPLETED TASKS:\n${tasksContext}`;
+
+    if (!this.client) {
+      return {
+        title: `Weekly Review (${startDate} – ${endDate})`,
+        summary: `Reflected on ${journalEntries.length} journal entries and accomplished ${completedTasks.length} tasks this week.`,
+        wins: completedTasks.map((t) => `Completed: ${t.title}`),
+        themes: ['Personal Growth', 'Consistency', 'LifeOS Reflections'],
+        action_items: ['Continue daily journaling', 'Review upcoming priorities'],
+        mood_overview: 'Calm & Consistent',
+      };
+    }
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are an insightful assistant that responds only in valid JSON.' },
+          { role: 'user', content: promptPayload },
+        ],
+        response_format: { type: 'json_object' },
+      });
+
+      const parsed = JSON.parse(response.choices[0]?.message?.content || '{}');
+      return {
+        title: parsed.title || `Weekly Review (${startDate} – ${endDate})`,
+        summary: parsed.summary || 'A week of continuous progress and reflection.',
+        wins: Array.isArray(parsed.wins) ? parsed.wins : [],
+        themes: Array.isArray(parsed.themes) ? parsed.themes : [],
+        action_items: Array.isArray(parsed.action_items) ? parsed.action_items : [],
+        mood_overview: parsed.mood_overview || 'Focused & Productive',
+      };
+    } catch (err) {
+      console.warn('OpenAI weekly digest error:', err);
+      return {
+        title: `Weekly Review (${startDate} – ${endDate})`,
+        summary: `Reflected on ${journalEntries.length} journal entries and accomplished ${completedTasks.length} tasks this week.`,
+        wins: completedTasks.map((t) => `Completed: ${t.title}`),
+        themes: ['Personal Growth', 'Consistency', 'LifeOS Reflections'],
+        action_items: ['Continue daily journaling', 'Review upcoming priorities'],
+        mood_overview: 'Calm & Consistent',
+      };
+    }
+  }
+
   private generateDeterministicVector(text: string, dimensions = 1536): number[] {
     const vector = new Array(dimensions).fill(0);
     const words = text.toLowerCase().split(/\W+/).filter(Boolean);

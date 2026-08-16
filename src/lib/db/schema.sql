@@ -174,7 +174,27 @@ BEGIN
     -- conversation_messages
     DROP POLICY IF EXISTS "conversation_messages_owner_access" ON public.conversation_messages;
     CREATE POLICY "conversation_messages_owner_access" ON public.conversation_messages FOR ALL USING (auth.uid() = user_id);
+
+    -- weekly_digests
+    DROP POLICY IF EXISTS "weekly_digests_owner_access" ON public.weekly_digests;
+    CREATE POLICY "weekly_digests_owner_access" ON public.weekly_digests FOR ALL USING (auth.uid() = user_id);
 END $$;
+
+-- 8b. WEEKLY DIGESTS TABLE
+CREATE TABLE IF NOT EXISTS public.weekly_digests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    start_date TIMESTAMPTZ NOT NULL,
+    end_date TIMESTAMPTZ NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    summary TEXT NOT NULL,
+    wins TEXT[] DEFAULT '{}',
+    themes TEXT[] DEFAULT '{}',
+    action_items TEXT[] DEFAULT '{}',
+    mood_overview VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_digests_user ON public.weekly_digests(user_id, created_at DESC);
 
 -- 11. TRIGGER: Automatically create default "Personal" and "Work" task lists for new users
 CREATE OR REPLACE FUNCTION public.handle_new_user_setup()
