@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Sparkles, Calendar, Trash2, Edit3, Check, Eye, EyeOff, BookOpen, Clock } from 'lucide-react';
 import { JournalEntry } from '@/types/database';
+import { localStore } from '@/lib/cache/local-store';
 
 export default function JournalPage() {
   const [rawText, setRawText] = useState('');
@@ -12,23 +13,31 @@ export default function JournalPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [showCleanedMap, setShowCleanedMap] = useState<Record<string, boolean>>({});
-
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Instant 0ms render from local device cache
+    const cached = localStore.getJournal('current');
+    if (cached && cached.length > 0) {
+      setEntries(cached);
+    } else {
+      setIsLoading(true);
+    }
+
+    // 2. Background Sync (Stale-While-Revalidate)
     fetchEntries();
   }, []);
 
   async function fetchEntries() {
-    setIsLoading(true);
     try {
       const res = await fetch('/api/journal');
       const data = await res.json();
-      if (data.entries) {
+      if (data.entries && Array.isArray(data.entries)) {
         setEntries(data.entries);
+        localStore.setJournal('current', data.entries);
       }
     } catch (err) {
-      console.error('Failed to load journal entries:', err);
+      console.error('Failed to load journal entries from network:', err);
     } finally {
       setIsLoading(false);
     }
@@ -45,7 +54,9 @@ export default function JournalPage() {
       });
       const data = await res.json();
       if (data.entry) {
-        setEntries([data.entry, ...entries]);
+        const updated = [data.entry, ...entries];
+        setEntries(updated);
+        localStore.setJournal('current', updated);
         setRawText('');
 
         if (data.autoCreatedTasks && data.autoCreatedTasks.length > 0) {
@@ -73,7 +84,9 @@ export default function JournalPage() {
       });
       const data = await res.json();
       if (data.entry) {
-        setEntries(entries.map((e) => (e.id === id ? data.entry : e)));
+        const updated = entries.map((e) => (e.id === id ? data.entry : e));
+        setEntries(updated);
+        localStore.setJournal('current', updated);
         setEditingId(null);
       }
     } catch (err) {
@@ -86,7 +99,9 @@ export default function JournalPage() {
     try {
       const res = await fetch(`/api/journal/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setEntries(entries.filter((e) => e.id !== id));
+        const updated = entries.filter((e) => e.id !== id);
+        setEntries(updated);
+        localStore.setJournal('current', updated);
       }
     } catch (err) {
       console.error('Failed to delete journal entry:', err);

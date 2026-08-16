@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Check, Trash2, Calendar, FolderPlus, ListTodo, MoreVertical, Clock } from 'lucide-react';
 import { TaskList, Task } from '@/types/database';
+import { localStore } from '@/lib/cache/local-store';
 
 export default function TasksPage() {
   const [lists, setLists] = useState<TaskList[]>([]);
@@ -17,6 +18,21 @@ export default function TasksPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // 1. Instant 0ms render from local device cache
+    const cached = localStore.getTasksData('current');
+    if (cached && cached.lists.length > 0) {
+      setLists(cached.lists);
+      const defaultList = cached.lists.find((l: TaskList) => l.is_default) || cached.lists[0];
+      if (defaultList) {
+        setActiveListId(defaultList.id);
+        const filteredTasks = cached.tasks.filter((t) => t.list_id === defaultList.id);
+        setTasks(filteredTasks);
+      }
+    } else {
+      setIsLoading(true);
+    }
+
+    // 2. Background Sync
     fetchLists();
   }, []);
 
@@ -27,7 +43,6 @@ export default function TasksPage() {
   }, [activeListId]);
 
   async function fetchLists() {
-    setIsLoading(true);
     try {
       const res = await fetch('/api/tasks/lists');
       const data = await res.json();
@@ -37,9 +52,10 @@ export default function TasksPage() {
           const defaultList = data.lists.find((l: TaskList) => l.is_default) || data.lists[0];
           setActiveListId(defaultList.id);
         }
+        localStore.setTasksData('current', data.lists, tasks);
       }
     } catch (err) {
-      console.error('Failed to fetch lists:', err);
+      console.error('Failed to fetch lists from network:', err);
     } finally {
       setIsLoading(false);
     }
@@ -49,11 +65,12 @@ export default function TasksPage() {
     try {
       const res = await fetch(`/api/tasks?listId=${listId}`);
       const data = await res.json();
-      if (data.tasks) {
+      if (data.tasks && Array.isArray(data.tasks)) {
         setTasks(data.tasks);
+        localStore.setTasksData('current', lists, data.tasks);
       }
     } catch (err) {
-      console.error('Failed to fetch tasks:', err);
+      console.error('Failed to fetch tasks from network:', err);
     }
   }
 
@@ -74,7 +91,9 @@ export default function TasksPage() {
       });
       const data = await res.json();
       if (data.task) {
-        setTasks([data.task, ...tasks]);
+        const updated = [data.task, ...tasks];
+        setTasks(updated);
+        localStore.setTasksData('current', lists, updated);
         setNewTaskTitle('');
         setNewTaskNotes('');
         setNewTaskDueDate('');
@@ -88,7 +107,9 @@ export default function TasksPage() {
   async function handleToggleComplete(task: Task) {
     const updatedStatus = !task.is_completed;
     // Optimistic UI update
-    setTasks(tasks.map((t) => (t.id === task.id ? { ...t, is_completed: updatedStatus } : t)));
+    const updated = tasks.map((t) => (t.id === task.id ? { ...t, is_completed: updatedStatus } : t));
+    setTasks(updated);
+    localStore.setTasksData('current', lists, updated);
 
     try {
       await fetch(`/api/tasks/${task.id}`, {
@@ -104,7 +125,9 @@ export default function TasksPage() {
   }
 
   async function handleDeleteTask(taskId: string) {
-    setTasks(tasks.filter((t) => t.id !== taskId));
+    const updated = tasks.filter((t) => t.id !== taskId);
+    setTasks(updated);
+    localStore.setTasksData('current', lists, updated);
     try {
       await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
     } catch (err) {
@@ -125,7 +148,9 @@ export default function TasksPage() {
       });
       const data = await res.json();
       if (data.list) {
-        setLists([...lists, data.list]);
+        const updatedLists = [...lists, data.list];
+        setLists(updatedLists);
+        localStore.setTasksData('current', updatedLists, tasks);
         setActiveListId(data.list.id);
         setNewListName('');
         setIsAddingList(false);

@@ -15,11 +15,12 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { WeeklyDigest } from '@/types/database';
+import { localStore } from '@/lib/cache/local-store';
 
 export default function DigestPage() {
   const [digests, setDigests] = useState<WeeklyDigest[]>([]);
   const [selectedDigest, setSelectedDigest] = useState<WeeklyDigest | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Custom date range inputs (defaults to previous 7 days)
@@ -36,22 +37,32 @@ export default function DigestPage() {
     setEndDate(end.toISOString().split('T')[0]);
     setStartDate(start.toISOString().split('T')[0]);
 
+    // 1. Instant 0ms render from local device cache
+    const cached = localStore.getDigests('current');
+    if (cached && cached.length > 0) {
+      setDigests(cached);
+      setSelectedDigest(cached[0]);
+    } else {
+      setIsLoading(true);
+    }
+
+    // 2. Background Sync
     fetchDigests();
   }, []);
 
   async function fetchDigests() {
-    setIsLoading(true);
     try {
       const res = await fetch('/api/digest');
       const data = await res.json();
       if (data.digests && Array.isArray(data.digests)) {
         setDigests(data.digests);
-        if (data.digests.length > 0) {
+        localStore.setDigests('current', data.digests);
+        if (data.digests.length > 0 && !selectedDigest) {
           setSelectedDigest(data.digests[0]);
         }
       }
     } catch (err) {
-      console.error('Failed to load digests:', err);
+      console.error('Failed to load digests from network:', err);
     } finally {
       setIsLoading(false);
     }
