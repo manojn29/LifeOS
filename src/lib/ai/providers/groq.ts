@@ -15,7 +15,7 @@ export class GroqProvider implements AIProvider {
   private client: OpenAI | null = null;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.GROQ_API_KEY || '';
+    this.apiKey = (apiKey || process.env.GROQ_API_KEY || '').trim();
     if (this.apiKey) {
       try {
         this.client = new OpenAI({
@@ -43,7 +43,8 @@ export class GroqProvider implements AIProvider {
         });
         const content = res.choices[0]?.message?.content?.trim();
         if (content) return content;
-      } catch (err) {
+      } catch (err: any) {
+        console.warn(`Groq model ${model} failed:`, err?.message || err);
         lastError = err;
       }
     }

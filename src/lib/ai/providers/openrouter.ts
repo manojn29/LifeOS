@@ -4,10 +4,12 @@ import { AI_PROMPTS } from '../prompts';
 import { MatchedJournalEntry } from '@/types/database';
 
 const OPENROUTER_FREE_MODELS = [
+  'openrouter/free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'deepseek/deepseek-r1:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
+  'mistralai/mistral-small-24b-instruct-2501:free',
   'google/gemma-2-9b-it:free',
-  'mistralai/mistral-7b-instruct:free',
+  'deepseek/deepseek-r1:free',
 ];
 
 export class OpenRouterProvider implements AIProvider {
@@ -16,7 +18,7 @@ export class OpenRouterProvider implements AIProvider {
   private client: OpenAI | null = null;
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.OPENROUTER_API_KEY || '';
+    this.apiKey = (apiKey || process.env.OPENROUTER_API_KEY || '').trim();
     if (this.apiKey) {
       try {
         this.client = new OpenAI({
@@ -48,7 +50,8 @@ export class OpenRouterProvider implements AIProvider {
         });
         const content = res.choices[0]?.message?.content?.trim();
         if (content) return content;
-      } catch (err) {
+      } catch (err: any) {
+        console.warn(`OpenRouter model ${model} failed:`, err?.message || err);
         lastError = err;
       }
     }
