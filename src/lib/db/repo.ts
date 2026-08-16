@@ -1,5 +1,5 @@
 import { createServerSupabaseClient, getAuthenticatedUser } from './supabase-server';
-import { JournalEntry, TaskList, Task, UserSettings, AIConversation, ConversationMessage, MatchedJournalEntry } from '@/types/database';
+import { JournalEntry, TaskList, Task, UserSettings, AIConversation, ConversationMessage, MatchedJournalEntry, AIReasoningMode } from '@/types/database';
 
 // In-memory local fallback store for seamless zero-config local testing and offline readiness
 const globalStore = globalThis as unknown as {
@@ -520,5 +520,189 @@ export const dbRepo = {
     const tasks = memoryStore.tasks.get(userId) || [];
     memoryStore.tasks.set(userId, tasks.filter((t) => t.id !== taskId));
     return true;
+  },
+
+  // CONVERSATIONS & CHAT HISTORY
+  async getOrCreateDefaultConversation(userId: string): Promise<AIConversation> {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from('ai_conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!error && data) return data as AIConversation;
+
+      const newConv = {
+        id: crypto.randomUUID(),
+        user_id: userId,
+        title: 'LifeOS AI Chat',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: created } = await supabase
+        .from('ai_conversations')
+        .insert(newConv)
+        .select()
+        .single();
+
+      if (created) return created as AIConversation;
+    } catch (err) {
+      console.warn('Supabase getOrCreateDefaultConversation fallback:', err);
+    }
+
+    const convs = memoryStore.conversations.get(userId) || [];
+    if (convs.length > 0) return convs[0];
+
+    const fallbackConv: AIConversation = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      title: 'LifeOS AI Chat',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    convs.push(fallbackConv);
+    memoryStore.conversations.set(userId, convs);
+    return fallbackConv;
+  },
+
+  async saveConversationMessage(
+    userId: string,
+    params: {
+      conversationId?: string;
+      role: 'user' | 'assistant' | 'system' | 'tool';
+      content: string;
+      reasoningMode?: AIReasoningMode | null;
+      retrievedEntryIds?: string[];
+      toolCalls?: any;
+      toolResults?: any;
+      createdAt?: string;
+    }
+  ): Promise<ConversationMessage> {
+    let convId = params.conversationId;
+    if (!convId) {
+      const conv = await this.getOrCreateDefaultConversation(userId);
+      convId = conv.id;
+    }
+
+    const newMsg: ConversationMessage = {
+      id: crypto.randomUUID(),
+      conversation_id: convId,
+      user_id: userId,
+      role: params.role,
+      content: params.content,
+      reasoning_mode: params.reasoningMode || null,
+      retrieved_entry_ids: params.retrievedEntryIds || [],
+      tool_calls: params.toolCalls || null,
+      tool_results: params.toolResults || null,
+      created_at: params.createdAt || new Date().toISOString(),
+    };
+
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from('conversation_messages')
+        .insert({
+          id: newMsg.id,
+          conversation_id: newMsg.conversation_id,
+          user_id: userId,
+          role: newMsg.role,
+          content: newMsg.content,
+          reasoning_mode: newMsg.reasoning_mode,
+          retrieved_entry_ids: newMsg.retrieved_entry_ids,
+          tool_calls: newMsg.tool_calls,
+          tool_results: newMsg.tool_results,
+          created_at: newMsg.created_at,
+        })
+        .select()
+        .single();
+
+      if (!error && data) return data as ConversationMessage;
+    } catch (err) {
+      console.warn('Supabase saveConversationMessage fallback:', err);
+    }
+
+    const msgs = memoryStore.messages.get(userId) || [];
+    msgs.push(newMsg);
+    memoryStore.messages.set(userId, msgs);
+    return newMsg;
+  },
+
+  async getConversationMessages(
+    userId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+      startDate?: string;
+      endDate?: string;
+    } = {}
+  ): Promise<{ messages: ConversationMessage[]; totalCount: number; hasMore: boolean }> {
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
+
+    try {
+      const supabase = await createServerSupabaseClient();
+      let query = supabase
+        .from('conversation_messages')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId);
+
+      if (options.startDate) {
+        const startIso = new Date(options.startDate).toISOString();
+        query = query.gte('created_at', startIso);
+      }
+
+      if (options.endDate) {
+        const end = new Date(options.endDate);
+        end.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', end.toISOString());
+      }
+
+      query = query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      const { data, error, count } = await query;
+
+      if (!error && data) {
+        const total = count ?? data.length;
+        const sorted = (data as ConversationMessage[]).reverse();
+        return {
+          messages: sorted,
+          totalCount: total,
+          hasMore: offset + limit < total,
+        };
+      }
+    } catch (err) {
+      console.warn('Supabase getConversationMessages fallback:', err);
+    }
+
+    let msgs = memoryStore.messages.get(userId) || [];
+    if (options.startDate) {
+      const startT = new Date(options.startDate).getTime();
+      msgs = msgs.filter((m) => new Date(m.created_at).getTime() >= startT);
+    }
+    if (options.endDate) {
+      const end = new Date(options.endDate);
+      end.setHours(23, 59, 59, 999);
+      const endT = end.getTime();
+      msgs = msgs.filter((m) => new Date(m.created_at).getTime() <= endT);
+    }
+
+    const sortedDesc = [...msgs].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    const total = sortedDesc.length;
+    const paged = sortedDesc.slice(offset, offset + limit).reverse();
+
+    return {
+      messages: paged,
+      totalCount: total,
+      hasMore: offset + limit < total,
+    };
   },
 };

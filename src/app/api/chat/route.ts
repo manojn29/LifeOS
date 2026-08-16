@@ -4,6 +4,33 @@ import { dbRepo } from '@/lib/db/repo';
 import { getAIProviderForUser } from '@/lib/ai/factory';
 import { TaskToolCall, ToolExecutionResult } from '@/lib/ai/types';
 
+export async function GET(req: NextRequest) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+
+    const result = await dbRepo.getConversationMessages(user.id, {
+      limit,
+      offset,
+      startDate,
+      endDate,
+    });
+
+    return NextResponse.json(result);
+  } catch (err: any) {
+    console.error('Chat history fetch error:', err);
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
@@ -18,6 +45,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
     }
 
+    // Save user message to persistent DB
+    await dbRepo.saveConversationMessage(user.id, {
+      role: 'user',
+      content: message.trim(),
+    });
+
     const aiProvider = await getAIProviderForUser(user.id);
     const availableTaskLists = await dbRepo.getTaskLists(user.id);
 
@@ -29,18 +62,18 @@ export async function POST(req: NextRequest) {
       console.warn('Chat query embedding error:', embErr);
     }
 
-    // 2. Vector RAG Search: Retrieve top 4 relevant journal entries
+    // 2. Vector RAG Search: Retrieve relevant journal entries
     let matchedEntries: any[] = [];
     if (queryEmbedding.length > 0) {
       try {
-        matchedEntries = await dbRepo.matchJournalEntries(user.id, queryEmbedding, 0.4, 4);
+        matchedEntries = await dbRepo.matchJournalEntries(user.id, queryEmbedding, 0.3, 4);
       } catch (matchErr) {
         console.warn('Vector match error:', matchErr);
       }
     }
 
-    // 3. Classify Intent & Reasoning Mode
-    const { mode, needsTools } = await aiProvider.classifyIntent(message);
+    // 3. Classify Intent & Reasoning Mode (instant regex heuristics)
+    const { mode } = await aiProvider.classifyIntent(message);
 
     // 4. Define Tool Execution callback to perform real DB operations
     const handleToolCall = async (toolCall: TaskToolCall): Promise<ToolExecutionResult> => {
@@ -53,7 +86,6 @@ export async function POST(req: NextRequest) {
 
           if (!targetList) {
             if (listName && listName.toLowerCase() !== 'personal') {
-              // Create list automatically if mentioned
               targetList = await dbRepo.createTaskList(user.id, listName);
               availableTaskLists.push(targetList);
             } else {
@@ -136,15 +168,26 @@ export async function POST(req: NextRequest) {
       onToolCall: handleToolCall,
     });
 
+    const citations = matchedEntries.map((e) => ({
+      id: e.id,
+      date: e.entry_date,
+      preview: e.cleaned_text.slice(0, 150),
+      similarity: Math.round(e.similarity * 100),
+    }));
+
+    // Save assistant reply to persistent DB
+    await dbRepo.saveConversationMessage(user.id, {
+      role: 'assistant',
+      content: chatResult.response,
+      reasoningMode: chatResult.modeUsed || mode,
+      retrievedEntryIds: matchedEntries.map((e) => e.id),
+      toolResults: chatResult.toolActions,
+    });
+
     return NextResponse.json({
       reply: chatResult.response,
       mode: chatResult.modeUsed || mode,
-      citations: matchedEntries.map((e) => ({
-        id: e.id,
-        date: e.entry_date,
-        preview: e.cleaned_text.slice(0, 150),
-        similarity: Math.round(e.similarity * 100),
-      })),
+      citations,
       toolActions: chatResult.toolActions || [],
       provider: aiProvider.providerName,
     });
