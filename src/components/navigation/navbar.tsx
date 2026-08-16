@@ -3,7 +3,17 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookOpen, CheckSquare, MessageSquare, Sparkles, Settings, LogOut, User } from 'lucide-react';
+import {
+  BookOpen,
+  CheckSquare,
+  MessageSquare,
+  Sparkles,
+  Settings,
+  LogOut,
+  Zap,
+  Globe,
+  Cpu,
+} from 'lucide-react';
 import Image from 'next/image';
 import { createClient } from '@/lib/db/supabase-browser';
 
@@ -15,10 +25,57 @@ const NAV_ITEMS = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
+const PROVIDER_CONFIGS: Record<
+  string,
+  { label: string; shortLabel: string; icon: any; color: string; border: string; bg: string }
+> = {
+  gemini: {
+    label: 'Google Gemini',
+    shortLabel: 'Gemini',
+    icon: Sparkles,
+    color: 'text-emerald-400',
+    border: 'border-emerald-700/50',
+    bg: 'bg-emerald-950/60',
+  },
+  groq: {
+    label: 'Groq (Llama 3.3)',
+    shortLabel: 'Groq LPU',
+    icon: Zap,
+    color: 'text-amber-400',
+    border: 'border-amber-700/50',
+    bg: 'bg-amber-950/60',
+  },
+  openrouter: {
+    label: 'OpenRouter (Free)',
+    shortLabel: 'OpenRouter',
+    icon: Globe,
+    color: 'text-cyan-400',
+    border: 'border-cyan-700/50',
+    bg: 'bg-cyan-950/60',
+  },
+  openai: {
+    label: 'OpenAI (GPT-4o)',
+    shortLabel: 'GPT-4o',
+    icon: Cpu,
+    color: 'text-blue-400',
+    border: 'border-blue-700/50',
+    bg: 'bg-blue-950/60',
+  },
+  claude: {
+    label: 'Claude 3.5',
+    shortLabel: 'Claude',
+    icon: Cpu,
+    color: 'text-purple-400',
+    border: 'border-purple-700/50',
+    bg: 'bg-purple-950/60',
+  },
+};
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [activeProvider, setActiveProvider] = useState<string>('gemini');
 
   useEffect(() => {
     const supabase = createClient();
@@ -28,14 +85,30 @@ export function Navbar() {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserEmail(session?.user?.email || null);
     });
+
+    fetchSettings();
 
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname]);
+
+  async function fetchSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      if (data.settings?.default_ai_provider) {
+        setActiveProvider(data.settings.default_ai_provider);
+      }
+    } catch {
+      // Ignore network errors
+    }
+  }
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -44,8 +117,43 @@ export function Navbar() {
     router.refresh();
   };
 
+  const providerMeta = PROVIDER_CONFIGS[activeProvider] || PROVIDER_CONFIGS.gemini;
+  const ProviderIcon = providerMeta.icon;
+
   return (
     <>
+      {/* Mobile Top Header */}
+      <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-xl sticky top-0 z-40">
+        <div className="flex items-center gap-2.5">
+          <div className="relative w-7 h-7 rounded-lg overflow-hidden border border-emerald-500/30">
+            <Image src="/icons/icon-192.png" alt="LifeOS" fill sizes="28px" className="object-cover" />
+          </div>
+          <span className="font-semibold tracking-tight text-zinc-100 text-base">LifeOS</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Active AI Model Badge on Mobile */}
+          <Link
+            href="/settings"
+            title="Active AI Provider (Tap to change)"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-mono transition-all active:scale-95 ${providerMeta.bg} ${providerMeta.border} ${providerMeta.color}`}
+          >
+            <ProviderIcon className="w-3 h-3 flex-shrink-0 animate-pulse" />
+            <span className="font-medium">{providerMeta.shortLabel}</span>
+          </Link>
+
+          {userEmail && (
+            <button
+              onClick={handleSignOut}
+              className="p-1 rounded-lg text-zinc-400 hover:text-rose-400 cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </header>
+
       {/* Desktop Header */}
       <header className="hidden md:flex items-center justify-between px-8 py-4 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -58,6 +166,16 @@ export function Navbar() {
               PWA
             </span>
           </div>
+
+          {/* Active AI Model Indicator */}
+          <Link
+            href="/settings"
+            title="Active AI Provider (Click to change in Settings)"
+            className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-mono transition-all hover:scale-105 cursor-pointer ${providerMeta.bg} ${providerMeta.border} ${providerMeta.color}`}
+          >
+            <ProviderIcon className="w-3.5 h-3.5 flex-shrink-0 animate-pulse" />
+            <span>AI: <strong className="font-semibold">{providerMeta.label}</strong></span>
+          </Link>
         </div>
 
         <nav className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800/80">
