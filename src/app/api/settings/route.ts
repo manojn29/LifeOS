@@ -14,6 +14,8 @@ export async function GET() {
       settings: {
         default_ai_provider: settings.default_ai_provider,
         has_gemini_key: Boolean(settings.gemini_api_key || process.env.GEMINI_API_KEY),
+        has_groq_key: Boolean(settings.groq_api_key || process.env.GROQ_API_KEY),
+        has_openrouter_key: Boolean(settings.openrouter_api_key || process.env.OPENROUTER_API_KEY),
         has_openai_key: Boolean(settings.openai_api_key || process.env.OPENAI_API_KEY),
         has_claude_key: Boolean(settings.claude_api_key || process.env.ANTHROPIC_API_KEY),
       },
@@ -32,11 +34,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { default_ai_provider, gemini_api_key, openai_api_key, claude_api_key } = body;
+    const {
+      default_ai_provider,
+      gemini_api_key,
+      groq_api_key,
+      openrouter_api_key,
+      openai_api_key,
+      claude_api_key,
+    } = body;
 
     const updates: any = {};
     if (default_ai_provider) updates.default_ai_provider = default_ai_provider;
     if (gemini_api_key !== undefined) updates.gemini_api_key = gemini_api_key;
+    if (groq_api_key !== undefined) updates.groq_api_key = groq_api_key;
+    if (openrouter_api_key !== undefined) updates.openrouter_api_key = openrouter_api_key;
     if (openai_api_key !== undefined) updates.openai_api_key = openai_api_key;
     if (claude_api_key !== undefined) updates.claude_api_key = claude_api_key;
 
@@ -46,6 +57,8 @@ export async function POST(req: NextRequest) {
       settings: {
         default_ai_provider: updated.default_ai_provider,
         has_gemini_key: Boolean(updated.gemini_api_key || process.env.GEMINI_API_KEY),
+        has_groq_key: Boolean(updated.groq_api_key || process.env.GROQ_API_KEY),
+        has_openrouter_key: Boolean(updated.openrouter_api_key || process.env.OPENROUTER_API_KEY),
         has_openai_key: Boolean(updated.openai_api_key || process.env.OPENAI_API_KEY),
         has_claude_key: Boolean(updated.claude_api_key || process.env.ANTHROPIC_API_KEY),
       },

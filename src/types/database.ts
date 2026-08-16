@@ -1,4 +1,4 @@
-export type AIProviderType = 'gemini' | 'openai' | 'claude';
+export type AIProviderType = 'gemini' | 'openai' | 'claude' | 'groq' | 'openrouter';
 
 export type AIReasoningMode =
   | 'mode_1_journal_only'
@@ -11,6 +11,8 @@ export interface UserSettings {
   openai_api_key?: string | null;
   gemini_api_key?: string | null;
   claude_api_key?: string | null;
+  groq_api_key?: string | null;
+  openrouter_api_key?: string | null;
   created_at: string;
   updated_at: string;
 }

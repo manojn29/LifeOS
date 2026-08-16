@@ -1,16 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, Shield, Cpu, Key, Check, Download, Database, CheckCircle2 } from 'lucide-react';
+import { Settings, Shield, Cpu, Key, Check, Download, Database, CheckCircle2, Zap, Globe, ExternalLink } from 'lucide-react';
 import { AIProviderType } from '@/types/database';
 
 export default function SettingsPage() {
   const [provider, setProvider] = useState<AIProviderType>('gemini');
   const [geminiKey, setGeminiKey] = useState('');
+  const [groqKey, setGroqKey] = useState('');
+  const [openrouterKey, setOpenrouterKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
   const [claudeKey, setClaudeKey] = useState('');
   const [keyStatus, setKeyStatus] = useState({
     has_gemini_key: false,
+    has_groq_key: false,
+    has_openrouter_key: false,
     has_openai_key: false,
     has_claude_key: false,
   });
@@ -36,6 +40,8 @@ export default function SettingsPage() {
         setProvider(data.settings.default_ai_provider || 'gemini');
         setKeyStatus({
           has_gemini_key: data.settings.has_gemini_key,
+          has_groq_key: data.settings.has_groq_key,
+          has_openrouter_key: data.settings.has_openrouter_key,
           has_openai_key: data.settings.has_openai_key,
           has_claude_key: data.settings.has_claude_key,
         });
@@ -57,6 +63,8 @@ export default function SettingsPage() {
         body: JSON.stringify({
           default_ai_provider: provider,
           gemini_api_key: geminiKey ? geminiKey.trim() : undefined,
+          groq_api_key: groqKey ? groqKey.trim() : undefined,
+          openrouter_api_key: openrouterKey ? openrouterKey.trim() : undefined,
           openai_api_key: openaiKey ? openaiKey.trim() : undefined,
           claude_api_key: claudeKey ? claudeKey.trim() : undefined,
         }),
@@ -66,6 +74,8 @@ export default function SettingsPage() {
       if (data.settings) {
         setKeyStatus({
           has_gemini_key: data.settings.has_gemini_key,
+          has_groq_key: data.settings.has_groq_key,
+          has_openrouter_key: data.settings.has_openrouter_key,
           has_openai_key: data.settings.has_openai_key,
           has_claude_key: data.settings.has_claude_key,
         });
@@ -112,7 +122,7 @@ export default function SettingsPage() {
         <div>
           <h3 className="text-sm font-semibold text-zinc-100 mb-1">LifeOS Privacy Principle</h3>
           <p className="text-xs text-zinc-300 leading-relaxed">
-            "My data belongs to me. AI models are replaceable." All raw memories and tasks are stored in your own PostgreSQL database. You can swap between Google Gemini, OpenAI, and Anthropic Claude at any moment.
+            "My data belongs to me. AI models are replaceable." All raw memories and tasks are stored in your own PostgreSQL database. You can swap between Google Gemini, Groq, OpenRouter, OpenAI, and Anthropic Claude at any moment.
           </p>
         </div>
       </div>
@@ -125,11 +135,38 @@ export default function SettingsPage() {
             Default AI Provider
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
-              { id: 'gemini', name: 'Google Gemini', desc: 'Fast cleaning & Flash models', badge: 'Recommended' },
-              { id: 'openai', name: 'OpenAI', desc: 'GPT-4o & text-embedding-3', badge: 'Popular' },
-              { id: 'claude', name: 'Anthropic Claude', desc: 'Claude 3.5 Sonnet / Haiku', badge: 'Analytical' },
+              {
+                id: 'gemini',
+                name: 'Google Gemini',
+                desc: 'Gemini 3.5/3.7 Flash & Embeddings',
+                badge: 'Free Tier (Default)',
+              },
+              {
+                id: 'groq',
+                name: 'Groq LPUs',
+                desc: 'Llama 3.3 70B & DeepSeek R1',
+                badge: 'Free & Ultra-Fast',
+              },
+              {
+                id: 'openrouter',
+                name: 'OpenRouter',
+                desc: 'Llama 3.3, Mistral & Gemma',
+                badge: 'Free Catalog',
+              },
+              {
+                id: 'openai',
+                name: 'OpenAI',
+                desc: 'GPT-4o & text-embedding-3',
+                badge: 'Popular',
+              },
+              {
+                id: 'claude',
+                name: 'Anthropic Claude',
+                desc: 'Claude 3.5 Sonnet / Haiku',
+                badge: 'Analytical',
+              },
             ].map((p) => {
               const isSelected = provider === p.id;
               return (
@@ -147,7 +184,10 @@ export default function SettingsPage() {
                     <span className="font-semibold text-sm text-zinc-100">{p.name}</span>
                     {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
                   </div>
-                  <p className="text-xs text-zinc-400">{p.desc}</p>
+                  <p className="text-xs text-zinc-400 mb-2">{p.desc}</p>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800/80 text-zinc-300 border border-zinc-700">
+                    {p.badge}
+                  </span>
                 </button>
               );
             })}
@@ -165,9 +205,20 @@ export default function SettingsPage() {
           </p>
 
           <div className="space-y-4">
+            {/* Google Gemini */}
             <div>
               <div className="flex items-center justify-between mb-1 text-xs">
-                <label className="font-medium text-zinc-300">Google Gemini API Key</label>
+                <div className="flex items-center gap-1.5">
+                  <label className="font-medium text-zinc-300">Google Gemini API Key</label>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-0.5"
+                  >
+                    (Get Free Key <ExternalLink className="w-2.5 h-2.5" />)
+                  </a>
+                </div>
                 <span className="font-mono text-[10px] text-emerald-400">
                   {keyStatus.has_gemini_key ? '✓ Configured' : 'Not configured'}
                 </span>
@@ -181,6 +232,61 @@ export default function SettingsPage() {
               />
             </div>
 
+            {/* Groq */}
+            <div>
+              <div className="flex items-center justify-between mb-1 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <label className="font-medium text-zinc-300">Groq API Key (Llama 3.3 70B & DeepSeek R1)</label>
+                  <a
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-0.5"
+                  >
+                    (Get Free Key <ExternalLink className="w-2.5 h-2.5" />)
+                  </a>
+                </div>
+                <span className="font-mono text-[10px] text-emerald-400">
+                  {keyStatus.has_groq_key ? '✓ Configured' : 'Not configured'}
+                </span>
+              </div>
+              <input
+                type="password"
+                placeholder={keyStatus.has_groq_key ? '••••••••••••••••••••••••' : 'gsk_...'}
+                value={groqKey}
+                onChange={(e) => setGroqKey(e.target.value)}
+                className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+
+            {/* OpenRouter */}
+            <div>
+              <div className="flex items-center justify-between mb-1 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <label className="font-medium text-zinc-300">OpenRouter API Key (Free Models)</label>
+                  <a
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-0.5"
+                  >
+                    (Get Free Key <ExternalLink className="w-2.5 h-2.5" />)
+                  </a>
+                </div>
+                <span className="font-mono text-[10px] text-emerald-400">
+                  {keyStatus.has_openrouter_key ? '✓ Configured' : 'Not configured'}
+                </span>
+              </div>
+              <input
+                type="password"
+                placeholder={keyStatus.has_openrouter_key ? '••••••••••••••••••••••••' : 'sk-or-v1-...'}
+                value={openrouterKey}
+                onChange={(e) => setOpenrouterKey(e.target.value)}
+                className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 font-mono"
+              />
+            </div>
+
+            {/* OpenAI */}
             <div>
               <div className="flex items-center justify-between mb-1 text-xs">
                 <label className="font-medium text-zinc-300">OpenAI API Key</label>
@@ -197,6 +303,7 @@ export default function SettingsPage() {
               />
             </div>
 
+            {/* Anthropic */}
             <div>
               <div className="flex items-center justify-between mb-1 text-xs">
                 <label className="font-medium text-zinc-300">Anthropic Claude API Key</label>
