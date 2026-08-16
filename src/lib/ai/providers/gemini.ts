@@ -107,27 +107,13 @@ export class GeminiProvider implements AIProvider {
       lower.includes('mark ') ||
       lower.includes('complete task');
 
-    if (!this.apiKey || !this.aiClient) {
-      if (lower.includes('search') || lower.includes('find job') || lower.includes('in london')) {
-        return { mode: 'mode_3_journal_search', needsTools: isTaskQuery };
-      }
-      if (lower.includes('advice') || lower.includes('recommend') || lower.includes('fit my experience')) {
-        return { mode: 'mode_2_journal_general', needsTools: isTaskQuery };
-      }
-      return { mode: 'mode_1_journal_only', needsTools: isTaskQuery };
+    if (lower.includes('search') || lower.includes('find job') || lower.includes('latest news') || lower.includes('in london')) {
+      return { mode: 'mode_3_journal_search', needsTools: isTaskQuery };
     }
-
-    try {
-      const prompt = `${AI_PROMPTS.CLASSIFY_INTENT}\n\nUSER MESSAGE:\n"${message}"`;
-      const text = await this.tryGenerate(prompt, { responseMimeType: 'application/json' });
-      const json = JSON.parse(text || '{}');
-      return {
-        mode: json.mode || 'mode_1_journal_only',
-        needsTools: typeof json.needsTools === 'boolean' ? json.needsTools : isTaskQuery,
-      };
-    } catch {
-      return { mode: 'mode_1_journal_only', needsTools: isTaskQuery };
+    if (lower.includes('advice') || lower.includes('recommend') || lower.includes('suggest') || lower.includes('fit my experience') || lower.includes('summarize')) {
+      return { mode: 'mode_2_journal_general', needsTools: isTaskQuery };
     }
+    return { mode: 'mode_1_journal_only', needsTools: isTaskQuery };
   }
 
   async chatWithContext(params: {

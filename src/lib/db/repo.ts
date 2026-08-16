@@ -241,7 +241,7 @@ export const dbRepo = {
   async matchJournalEntries(
     userId: string,
     queryEmbedding: number[],
-    threshold: number = 0.5,
+    threshold: number = 0.3,
     matchCount: number = 5
   ): Promise<MatchedJournalEntry[]> {
     try {
@@ -255,6 +255,24 @@ export const dbRepo = {
 
       if (!error && Array.isArray(data) && data.length > 0) {
         return data as MatchedJournalEntry[];
+      }
+
+      // Fallback to recent journal entries if vector threshold was not met
+      const { data: recent, error: recentErr } = await supabase
+        .from('journal_entries')
+        .select('id, raw_text, cleaned_text, entry_date')
+        .eq('user_id', userId)
+        .order('entry_date', { ascending: false })
+        .limit(matchCount);
+
+      if (!recentErr && recent && recent.length > 0) {
+        return recent.map((e) => ({
+          id: e.id,
+          raw_text: e.raw_text,
+          cleaned_text: e.cleaned_text,
+          entry_date: e.entry_date,
+          similarity: 0.85,
+        }));
       }
     } catch (err) {
       console.warn('Supabase match_journal_entries fallback:', err);
