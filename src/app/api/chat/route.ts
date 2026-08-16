@@ -1,0 +1,155 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/db/supabase-server';
+import { dbRepo } from '@/lib/db/repo';
+import { getAIProviderForUser } from '@/lib/ai/factory';
+import { TaskToolCall, ToolExecutionResult } from '@/lib/ai/types';
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { message, messages = [] } = body;
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
+    }
+
+    const aiProvider = await getAIProviderForUser(user.id);
+    const availableTaskLists = await dbRepo.getTaskLists(user.id);
+
+    // 1. Generate query embedding
+    let queryEmbedding: number[] = [];
+    try {
+      queryEmbedding = await aiProvider.generateEmbedding(message);
+    } catch (embErr) {
+      console.warn('Chat query embedding error:', embErr);
+    }
+
+    // 2. Vector RAG Search: Retrieve top 4 relevant journal entries
+    let matchedEntries: any[] = [];
+    if (queryEmbedding.length > 0) {
+      try {
+        matchedEntries = await dbRepo.matchJournalEntries(user.id, queryEmbedding, 0.4, 4);
+      } catch (matchErr) {
+        console.warn('Vector match error:', matchErr);
+      }
+    }
+
+    // 3. Classify Intent & Reasoning Mode
+    const { mode, needsTools } = await aiProvider.classifyIntent(message);
+
+    // 4. Define Tool Execution callback to perform real DB operations
+    const handleToolCall = async (toolCall: TaskToolCall): Promise<ToolExecutionResult> => {
+      try {
+        if (toolCall.tool === 'create_task') {
+          const { title, listName, dueDate, notes } = toolCall.arguments;
+          let targetList = availableTaskLists.find(
+            (l) => l.title.toLowerCase() === (listName || '').toLowerCase()
+          );
+
+          if (!targetList) {
+            if (listName && listName.toLowerCase() !== 'personal') {
+              // Create list automatically if mentioned
+              targetList = await dbRepo.createTaskList(user.id, listName);
+              availableTaskLists.push(targetList);
+            } else {
+              targetList = availableTaskLists.find((l) => l.is_default) || availableTaskLists[0];
+            }
+          }
+
+          const created = await dbRepo.createTask(user.id, {
+            listId: targetList.id,
+            title,
+            notes,
+            dueDate,
+          });
+
+          return {
+            tool: 'create_task',
+            success: true,
+            message: `Added "${title}" to ${targetList.title}${dueDate ? ` (${dueDate})` : ''}.`,
+            data: created,
+          };
+        }
+
+        if (toolCall.tool === 'create_list') {
+          const { listName } = toolCall.arguments;
+          const newList = await dbRepo.createTaskList(user.id, listName);
+          availableTaskLists.push(newList);
+          return {
+            tool: 'create_list',
+            success: true,
+            message: `Created new list "${listName}".`,
+            data: newList,
+          };
+        }
+
+        if (toolCall.tool === 'complete_task') {
+          const { taskTitleOrId } = toolCall.arguments;
+          const allTasks = await dbRepo.getTasks(user.id);
+          const target = allTasks.find(
+            (t) =>
+              t.id === taskTitleOrId ||
+              t.title.toLowerCase().includes(taskTitleOrId.toLowerCase())
+          );
+
+          if (target) {
+            const updated = await dbRepo.updateTask(user.id, target.id, { is_completed: true });
+            return {
+              tool: 'complete_task',
+              success: true,
+              message: `Marked "${target.title}" as completed.`,
+              data: updated,
+            };
+          }
+          return {
+            tool: 'complete_task',
+            success: false,
+            message: `Could not find task matching "${taskTitleOrId}".`,
+          };
+        }
+
+        return {
+          tool: toolCall.tool,
+          success: false,
+          message: `Unknown tool: ${toolCall.tool}`,
+        };
+      } catch (err: any) {
+        return {
+          tool: toolCall.tool,
+          success: false,
+          message: `Failed to execute ${toolCall.tool}: ${err.message}`,
+        };
+      }
+    };
+
+    // 5. Generate Answer via AI Provider with RAG context and Tool execution
+    const chatResult = await aiProvider.chatWithContext({
+      messages: [...messages, { role: 'user', content: message }],
+      journalContext: matchedEntries,
+      mode,
+      availableTaskLists,
+      onToolCall: handleToolCall,
+    });
+
+    return NextResponse.json({
+      reply: chatResult.response,
+      mode: chatResult.modeUsed || mode,
+      citations: matchedEntries.map((e) => ({
+        id: e.id,
+        date: e.entry_date,
+        preview: e.cleaned_text.slice(0, 150),
+        similarity: Math.round(e.similarity * 100),
+      })),
+      toolActions: chatResult.toolActions || [],
+      provider: aiProvider.providerName,
+    });
+  } catch (err: any) {
+    console.error('Chat API route error:', err);
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
