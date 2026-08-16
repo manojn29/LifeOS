@@ -12,6 +12,7 @@ export default function JournalPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
   const [showCleanedMap, setShowCleanedMap] = useState<Record<string, boolean>>({});
   const [taskNotice, setTaskNotice] = useState<string | null>(null);
 
@@ -75,7 +76,8 @@ export default function JournalPage() {
   }
 
   async function handleUpdate(id: string) {
-    if (!editText.trim()) return;
+    if (!editText.trim() || isUpdatingId) return;
+    setIsUpdatingId(id);
     try {
       const res = await fetch(`/api/journal/${id}`, {
         method: 'PUT',
@@ -87,10 +89,14 @@ export default function JournalPage() {
         const updated = entries.map((e) => (e.id === id ? data.entry : e));
         setEntries(updated);
         localStore.setJournal('current', updated);
+        // Automatically switch view to show the newly cleaned text
+        setShowCleanedMap((prev) => ({ ...prev, [id]: true }));
         setEditingId(null);
       }
     } catch (err) {
       console.error('Failed to update journal entry:', err);
+    } finally {
+      setIsUpdatingId(null);
     }
   }
 
@@ -284,16 +290,27 @@ export default function JournalPage() {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => setEditingId(null)}
-                        className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:bg-zinc-800 cursor-pointer"
+                        disabled={isUpdatingId === entry.id}
+                        className="px-3.5 py-1.5 rounded-xl text-xs text-zinc-400 hover:bg-zinc-800 cursor-pointer disabled:opacity-50 transition-colors"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={() => handleUpdate(entry.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs bg-emerald-500 text-zinc-950 font-medium hover:bg-emerald-400 flex items-center gap-1 cursor-pointer"
+                        disabled={isUpdatingId === entry.id || !editText.trim()}
+                        className="px-3.5 py-1.5 rounded-xl text-xs bg-emerald-500 text-zinc-950 font-semibold hover:bg-emerald-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shadow-md shadow-emerald-950/30"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Save & Re-clean</span>
+                        {isUpdatingId === entry.id ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                            <span>Re-cleaning with AI...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Save & Re-clean</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
