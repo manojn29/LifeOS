@@ -63,6 +63,8 @@ export const dbRepo = {
         user_id: userId,
         default_ai_provider: 'gemini',
         gemini_api_key: process.env.GEMINI_API_KEY || null,
+        groq_api_key: process.env.GROQ_API_KEY || null,
+        openrouter_api_key: process.env.OPENROUTER_API_KEY || null,
         openai_api_key: process.env.OPENAI_API_KEY || null,
         claude_api_key: process.env.ANTHROPIC_API_KEY || null,
         created_at: new Date().toISOString(),

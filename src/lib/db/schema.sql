@@ -10,13 +10,19 @@ CREATE EXTENSION IF NOT EXISTS "vector";
 -- 2. USER SETTINGS TABLE (Model-agnostic AI provider preferences)
 CREATE TABLE IF NOT EXISTS public.user_settings (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    default_ai_provider VARCHAR(50) DEFAULT 'gemini' NOT NULL, -- 'gemini' | 'openai' | 'claude'
-    openai_api_key TEXT,
+    default_ai_provider VARCHAR(50) DEFAULT 'gemini' NOT NULL, -- 'gemini' | 'groq' | 'openrouter' | 'openai' | 'claude'
     gemini_api_key TEXT,
+    groq_api_key TEXT,
+    openrouter_api_key TEXT,
+    openai_api_key TEXT,
     claude_api_key TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+-- Migrations for existing user_settings tables
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS groq_api_key TEXT;
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS openrouter_api_key TEXT;
 
 -- 3. JOURNAL ENTRIES TABLE
 -- Stores both raw_text (unmodified user truth) and cleaned_text (grammar/clarity polished for AI)
