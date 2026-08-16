@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/db/supabase-server';
 import { dbRepo } from '@/lib/db/repo';
 import { getAIProviderForUser } from '@/lib/ai/factory';
+import { extractTasksFromJournalText } from '@/lib/ai/task-extractor';
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,7 +50,39 @@ export async function POST(req: NextRequest) {
       console.warn('Could not generate embedding for entry:', embErr);
     }
 
-    return NextResponse.json({ entry: newEntry }, { status: 201 });
+    // 5. Automatic Journal Task Extraction & Auto-Creation
+    const autoCreatedTasks: { title: string; listName: string }[] = [];
+    try {
+      const availableLists = await dbRepo.getTaskLists(user.id);
+      const extractedTasks = extractTasksFromJournalText(rawText, availableLists);
+
+      for (const extracted of extractedTasks) {
+        let targetList = availableLists.find(
+          (l) => l.title.toLowerCase() === extracted.listName.toLowerCase()
+        );
+
+        if (!targetList) {
+          targetList = await dbRepo.createTaskList(user.id, extracted.listName);
+          availableLists.push(targetList);
+        }
+
+        await dbRepo.createTask(user.id, {
+          listId: targetList.id,
+          title: extracted.title,
+          dueDate: extracted.dueDate,
+          notes: extracted.notes,
+        });
+
+        autoCreatedTasks.push({
+          title: extracted.title,
+          listName: targetList.title,
+        });
+      }
+    } catch (taskErr) {
+      console.warn('Automatic task extraction non-fatal error:', taskErr);
+    }
+
+    return NextResponse.json({ entry: newEntry, autoCreatedTasks }, { status: 201 });
   } catch (err: any) {
     console.error('Error creating journal entry:', err);
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });

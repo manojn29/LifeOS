@@ -13,6 +13,8 @@ export default function JournalPage() {
   const [editText, setEditText] = useState('');
   const [showCleanedMap, setShowCleanedMap] = useState<Record<string, boolean>>({});
 
+  const [taskNotice, setTaskNotice] = useState<string | null>(null);
+
   useEffect(() => {
     fetchEntries();
   }, []);
@@ -45,6 +47,14 @@ export default function JournalPage() {
       if (data.entry) {
         setEntries([data.entry, ...entries]);
         setRawText('');
+
+        if (data.autoCreatedTasks && data.autoCreatedTasks.length > 0) {
+          const names = data.autoCreatedTasks
+            .map((t: any) => `"${t.title}" → ${t.listName}`)
+            .join(', ');
+          setTaskNotice(`✓ Automatically added task: ${names}`);
+          setTimeout(() => setTaskNotice(null), 6000);
+        }
       }
     } catch (err) {
       console.error('Failed to save journal entry:', err);
@@ -101,6 +111,14 @@ export default function JournalPage() {
           Write freely. Your raw words remain the source of truth, while AI polishes grammar and indexes memories.
         </p>
       </div>
+
+      {/* Task Auto-Creation Banner */}
+      {taskNotice && (
+        <div className="mb-6 p-4 rounded-2xl bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 text-sm font-medium flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 shadow-lg shadow-emerald-950/40">
+          <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span>{taskNotice}</span>
+        </div>
+      )}
 
       {/* Editor Card */}
       <div className="glass-panel rounded-2xl p-5 md:p-6 mb-12 shadow-xl relative focus-within:border-emerald-500/50 transition-all">
