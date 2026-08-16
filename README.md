@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LifeOS — Minimal AI Personal Memory PWA
 
-## Getting Started
+> **"My data belongs to me. AI models are replaceable."**
 
-First, run the development server:
+LifeOS is a privacy-first, model-agnostic Personal Memory Progressive Web App (PWA). It stores your journal entries, memories, and to-do lists in your own PostgreSQL database, enabling any AI model (Gemini, OpenAI, Claude, Groq, OpenRouter) to retrieve, polish, and reason over your data without vendor lock-in.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## ✨ Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Dual-Layer Journaling**: Raw text is preserved as the uncompromised source of truth; AI cleans spelling/grammar and indexes entries into `pgvector`.
+- **RAG Semantic Search & Memory Recall**: Cosine-similarity vector search retrieves only relevant journal entries to answer personal questions without hallucinating.
+- **Natural Language Task Management**: Conversational AI function calling automatically creates, checks, and manages to-do tasks across custom lists (Personal, Work, Shopping, etc.).
+- **Multi-Model Provider Architecture**: Pluggable Strategy Pattern supporting **Google Gemini**, **OpenAI**, and **Anthropic Claude**.
+- **Progressive Web App (PWA)**: Installable on iOS, Android, and Desktop with full-screen distraction-free UI.
+- **Tenant Isolation & Security**: PostgreSQL Row Level Security (RLS) with Supabase Auth.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🛠️ Technology Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Frontend**: Next.js 15+ (App Router), React 19, TypeScript, Tailwind CSS
+- **Database & Vectors**: PostgreSQL + `pgvector`
+- **Authentication**: Supabase Auth (SSR Client `@supabase/ssr`)
+- **AI Providers**: `@google/genai` (Gemini 3.5/3.7 Flash), `openai` (GPT-4o), `@anthropic-ai/sdk` (Claude 3.5)
+- **Deployment**: Netlify / Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🗺️ Roadmap & Upcoming Integrations
 
-## Deploy on Vercel
+See [TODO.md](./TODO.md) for active tasks:
+- [ ] **Groq Provider Adapter**: Llama 3.3 70B & DeepSeek R1 via Groq's ultra-fast LPU inference (Free tier).
+- [ ] **OpenRouter Provider Adapter**: Access to OpenRouter's free-tier open models (`:free` catalog).
+- [ ] **Data Export**: Full export of raw memories and embeddings into JSON/Markdown archive.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🚀 Getting Started
+
+1. Clone the repository and install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Configure environment variables in `.env.local`:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   GEMINI_API_KEY=your-gemini-key
+   ```
+
+3. Run the database schema in Supabase SQL editor using `src/lib/db/schema.sql`.
+
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
