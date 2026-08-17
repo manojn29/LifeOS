@@ -20,6 +20,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { AIReasoningMode } from '@/types/database';
+import { MarkdownRenderer } from '@/components/chat/markdown-renderer';
 
 interface Citation {
   id: string;
@@ -609,7 +610,11 @@ export default function ChatPage() {
                   )}
 
                   {/* Message Body */}
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {isUser ? (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  ) : (
+                    <MarkdownRenderer content={msg.content} />
+                  )}
 
                   {/* Retrieved Journal Citations Accordion */}
                   {!isUser && hasCitations && (
