@@ -712,6 +712,41 @@ export const dbRepo = {
     };
   },
 
+  async deleteConversationMessages(userId: string, messageIds: string[]): Promise<boolean> {
+    if (!messageIds || messageIds.length === 0) return true;
+
+    try {
+      const supabase = await createServerSupabaseClient();
+      // 1. Delete from conversation_messages
+      await supabase
+        .from('conversation_messages')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', messageIds);
+
+      // 2. Also unpin if any of these were pinned
+      await supabase
+        .from('pinned_chats')
+        .delete()
+        .eq('user_id', userId)
+        .in('message_id', messageIds);
+
+      return true;
+    } catch (err) {
+      console.warn('Supabase deleteConversationMessages fallback:', err);
+    }
+
+    const msgs = memoryStore.messages.get(userId) || [];
+    const updatedMsgs = msgs.filter((m) => !messageIds.includes(m.id));
+    memoryStore.messages.set(userId, updatedMsgs);
+
+    const pins = memoryStore.pinnedChats.get(userId) || [];
+    const updatedPins = pins.filter((p) => !p.message_id || !messageIds.includes(p.message_id));
+    memoryStore.pinnedChats.set(userId, updatedPins);
+
+    return true;
+  },
+
   // WEEKLY DIGESTS
   async getJournalEntriesInRange(userId: string, startDate: string, endDate: string): Promise<JournalEntry[]> {
     try {

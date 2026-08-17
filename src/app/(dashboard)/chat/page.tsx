@@ -19,6 +19,7 @@ import {
   Lightbulb,
   Globe,
   Pin,
+  Trash2,
 } from 'lucide-react';
 import { AIReasoningMode, PinnedChat } from '@/types/database';
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer';
@@ -407,6 +408,42 @@ export default function ChatPage() {
     }
   };
 
+  const handleDeleteExchange = async (msgId: string) => {
+    const msgIndex = messages.findIndex((m) => m.id === msgId);
+    if (msgIndex === -1) return;
+
+    const currentMsg = messages[msgIndex];
+    const idsToDelete: string[] = [currentMsg.id];
+
+    if (currentMsg.role === 'user') {
+      // Look for the paired assistant message right after it
+      if (messages[msgIndex + 1]?.role === 'assistant') {
+        idsToDelete.push(messages[msgIndex + 1].id);
+      }
+    } else {
+      // Look for the paired user question right before it
+      if (messages[msgIndex - 1]?.role === 'user') {
+        idsToDelete.push(messages[msgIndex - 1].id);
+      }
+    }
+
+    // Optimistic removal from state
+    setMessages((prev) => prev.filter((m) => !idsToDelete.includes(m.id)));
+    // Also unpin if any of these were pinned
+    setPinnedChats((prev) =>
+      prev.filter((p) => !p.message_id || !idsToDelete.includes(p.message_id))
+    );
+
+    try {
+      await fetch(`/api/chat?ids=${idsToDelete.join(',')}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      console.error('Failed to delete exchange:', err);
+      fetchChatHistory({ limit: 10, offset: 0 });
+    }
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
     if (!query || isSending) return;
@@ -713,31 +750,42 @@ export default function ChatPage() {
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePin(msg)}
-                        title={
-                          isMessagePinned(msg.id, msg.content)
-                            ? 'Unpin this Q&A'
-                            : 'Pin this Q&A'
-                        }
-                        className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
-                          isMessagePinned(msg.id, msg.content)
-                            ? 'bg-amber-950/70 border-amber-600/60 text-amber-300 shadow-sm'
-                            : 'border-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                        }`}
-                      >
-                        <Pin
-                          className={`w-3 h-3 ${
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePin(msg)}
+                          title={
                             isMessagePinned(msg.id, msg.content)
-                              ? 'fill-amber-400 text-amber-400'
-                              : ''
+                              ? 'Unpin this Q&A'
+                              : 'Pin this Q&A'
+                          }
+                          className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                            isMessagePinned(msg.id, msg.content)
+                              ? 'bg-amber-950/70 border-amber-600/60 text-amber-300 shadow-sm'
+                              : 'border-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
                           }`}
-                        />
-                        <span>
-                          {isMessagePinned(msg.id, msg.content) ? 'Pinned' : 'Pin'}
-                        </span>
-                      </button>
+                        >
+                          <Pin
+                            className={`w-3 h-3 ${
+                              isMessagePinned(msg.id, msg.content)
+                                ? 'fill-amber-400 text-amber-400'
+                                : ''
+                            }`}
+                          />
+                          <span>
+                            {isMessagePinned(msg.id, msg.content) ? 'Pinned' : 'Pin'}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExchange(msg.id)}
+                          title="Delete question & response"
+                          className="p-1 rounded-lg border border-transparent text-zinc-500 hover:text-rose-400 hover:bg-zinc-800/80 hover:border-zinc-700/60 cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -801,11 +849,24 @@ export default function ChatPage() {
                   )}
 
                   <div
-                    className={`text-[10px] mt-1.5 text-right font-mono ${
-                      isUser ? 'text-zinc-800/80' : 'text-zinc-500'
+                    className={`text-[10px] mt-1.5 flex items-center justify-between font-mono ${
+                      isUser ? 'text-zinc-900/80' : 'text-zinc-500'
                     }`}
                   >
-                    {msg.timestamp}
+                    {isUser ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteExchange(msg.id)}
+                        title="Delete question & response"
+                        className="opacity-70 hover:opacity-100 p-0.5 rounded text-zinc-950 hover:text-rose-950 cursor-pointer transition-opacity flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span className="text-[10px]">Delete Q&A</span>
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    <span>{msg.timestamp}</span>
                   </div>
                 </div>
 

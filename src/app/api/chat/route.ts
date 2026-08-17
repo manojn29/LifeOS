@@ -207,3 +207,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const idsParam = searchParams.get('ids');
+    let messageIds: string[] = [];
+
+    if (idsParam) {
+      messageIds = idsParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else {
+      const body = await req.json().catch(() => ({}));
+      if (Array.isArray(body.ids)) {
+        messageIds = body.ids;
+      } else if (body.id) {
+        messageIds = [body.id];
+      }
+    }
+
+    if (messageIds.length === 0) {
+      return NextResponse.json({ error: 'No message IDs provided' }, { status: 400 });
+    }
+
+    const success = await dbRepo.deleteConversationMessages(user.id, messageIds);
+    return NextResponse.json({ success, deletedIds: messageIds });
+  } catch (err: any) {
+    console.error('Delete chat message error:', err);
+    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
