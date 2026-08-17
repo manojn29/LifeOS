@@ -15,6 +15,9 @@ import {
   RotateCcw,
   Clock,
   ArrowDown,
+  BookOpen,
+  Lightbulb,
+  Globe,
 } from 'lucide-react';
 import { AIReasoningMode } from '@/types/database';
 
@@ -37,6 +40,50 @@ interface Message {
   createdAt?: string;
 }
 
+type SelectedMode = 'auto' | 'mode_1_journal_only' | 'mode_2_journal_general' | 'mode_3_journal_search';
+
+const MODE_OPTIONS: {
+  id: SelectedMode;
+  label: string;
+  shortLabel: string;
+  desc: string;
+  icon: any;
+  badgeClass: string;
+}[] = [
+  {
+    id: 'auto',
+    label: 'Auto (Smart Detect)',
+    shortLabel: 'Auto',
+    desc: 'Automatically chooses the most relevant mode based on your query',
+    icon: Sparkles,
+    badgeClass: 'text-emerald-400 border-emerald-500/50 bg-emerald-950/70',
+  },
+  {
+    id: 'mode_1_journal_only',
+    label: 'Mode 1: Strict Journal Truth',
+    shortLabel: 'Mode 1: Journal Only',
+    desc: 'Strictly answers factually only from your saved journal entries',
+    icon: BookOpen,
+    badgeClass: 'text-emerald-400 border-emerald-500/50 bg-emerald-950/70',
+  },
+  {
+    id: 'mode_2_journal_general',
+    label: 'Mode 2: Journal + Knowledge',
+    shortLabel: 'Mode 2: Advice & Ideas',
+    desc: 'Combines your journal context with general reasoning, creative ideas, and frameworks',
+    icon: Lightbulb,
+    badgeClass: 'text-blue-400 border-blue-500/50 bg-blue-950/70',
+  },
+  {
+    id: 'mode_3_journal_search',
+    label: 'Mode 3: Journal + Search',
+    shortLabel: 'Mode 3: Search',
+    desc: 'Connects your journal context with external search and external world data',
+    icon: Globe,
+    badgeClass: 'text-purple-400 border-purple-500/50 bg-purple-950/70',
+  },
+];
+
 const SAMPLE_PROMPTS = [
   'Summarize my week',
   'What goals have I mentioned?',
@@ -51,6 +98,7 @@ const SAMPLE_PROMPTS = [
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [selectedMode, setSelectedMode] = useState<SelectedMode>('auto');
   const [isSending, setIsSending] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -273,6 +321,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           message: query,
           messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          reasoningMode: selectedMode === 'auto' ? undefined : selectedMode,
         }),
       });
 
@@ -647,6 +696,33 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* AI Reasoning Mode Selector Toolbar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-2 no-scrollbar text-xs">
+        <span className="text-[11px] font-mono text-zinc-500 mr-1 flex items-center gap-1 flex-shrink-0">
+          Mode:
+        </span>
+        {MODE_OPTIONS.map((m) => {
+          const Icon = m.icon;
+          const isSelected = selectedMode === m.id;
+          return (
+            <button
+              type="button"
+              key={m.id}
+              onClick={() => setSelectedMode(m.id)}
+              title={m.desc}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                isSelected
+                  ? `${m.badgeClass} shadow-md ring-1 ring-emerald-500/20`
+                  : 'bg-zinc-900/70 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/80'
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 ${isSelected ? 'animate-pulse' : ''}`} />
+              <span>{m.shortLabel}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Input Box */}
       <form
         onSubmit={(e) => {
@@ -659,7 +735,15 @@ export default function ChatPage() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask your journal or tell AI to manage tasks..."
+          placeholder={
+            selectedMode === 'mode_1_journal_only'
+              ? 'Ask strictly about your journal memories...'
+              : selectedMode === 'mode_2_journal_general'
+              ? 'Ask for advice, ideas, and reflections based on your journal...'
+              : selectedMode === 'mode_3_journal_search'
+              ? 'Ask external questions connected to your journal...'
+              : 'Ask your journal or tell AI to manage tasks...'
+          }
           className="flex-1 bg-transparent border-0 px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none text-sm md:text-base"
         />
         <button

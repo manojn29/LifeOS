@@ -91,12 +91,48 @@ export class OpenRouterProvider implements AIProvider {
       lower.includes('mark ') ||
       lower.includes('complete task');
 
-    if (lower.includes('search') || lower.includes('find job') || lower.includes('latest news') || lower.includes('in london')) {
+    if (
+      lower.includes('search') ||
+      lower.includes('find job') ||
+      lower.includes('latest news') ||
+      lower.includes('weather') ||
+      lower.includes('current events') ||
+      lower.includes('lookup') ||
+      lower.includes('browse') ||
+      lower.includes('in london')
+    ) {
       return { mode: 'mode_3_journal_search', needsTools: isTaskQuery };
     }
-    if (lower.includes('advice') || lower.includes('recommend') || lower.includes('suggest') || lower.includes('fit my experience') || lower.includes('summarize')) {
+
+    if (
+      lower.includes('advice') ||
+      lower.includes('recommend') ||
+      lower.includes('suggest') ||
+      lower.includes('how to') ||
+      lower.includes('how can i') ||
+      lower.includes('how should i') ||
+      lower.includes('what should i') ||
+      lower.includes('help me') ||
+      lower.includes('ideas') ||
+      lower.includes('tips') ||
+      lower.includes('plan') ||
+      lower.includes('brainstorm') ||
+      lower.includes('analyze') ||
+      lower.includes('insights') ||
+      lower.includes('why do i') ||
+      lower.includes('why am i') ||
+      lower.includes('opinion') ||
+      lower.includes('strategy') ||
+      lower.includes('fit my experience') ||
+      lower.includes('summarize') ||
+      lower.includes('guide') ||
+      lower.includes('improve') ||
+      lower.includes('compare') ||
+      lower.includes('thoughts on')
+    ) {
       return { mode: 'mode_2_journal_general', needsTools: isTaskQuery };
     }
+
     return { mode: 'mode_1_journal_only', needsTools: isTaskQuery };
   }
 

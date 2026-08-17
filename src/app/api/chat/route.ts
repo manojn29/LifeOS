@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from '@/lib/db/supabase-server';
 import { dbRepo } from '@/lib/db/repo';
 import { getAIProviderForUser } from '@/lib/ai/factory';
 import { TaskToolCall, ToolExecutionResult } from '@/lib/ai/types';
+import { AIReasoningMode } from '@/types/database';
 
 export async function GET(req: NextRequest) {
   try {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { message, messages = [] } = body;
+    const { message, messages = [], reasoningMode } = body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
@@ -72,8 +73,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Classify Intent & Reasoning Mode (instant regex heuristics)
-    const { mode } = await aiProvider.classifyIntent(message);
+    // 3. Determine Reasoning Mode (User-Specified Mode or Smart Auto-Classification)
+    let mode: AIReasoningMode;
+    if (
+      reasoningMode === 'mode_1_journal_only' ||
+      reasoningMode === 'mode_2_journal_general' ||
+      reasoningMode === 'mode_3_journal_search'
+    ) {
+      mode = reasoningMode;
+    } else {
+      const classification = await aiProvider.classifyIntent(message);
+      mode = classification.mode;
+    }
 
     // 4. Define Tool Execution callback to perform real DB operations
     const handleToolCall = async (toolCall: TaskToolCall): Promise<ToolExecutionResult> => {
