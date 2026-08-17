@@ -102,3 +102,14 @@ export interface WeeklyDigest {
   mood_overview?: string | null;
   created_at: string;
 }
+
+export interface PinnedChat {
+  id: string;
+  user_id: string;
+  question: string;
+  response: string;
+  mode?: AIReasoningMode | null;
+  provider?: string | null;
+  message_id?: string | null;
+  created_at: string;
+}

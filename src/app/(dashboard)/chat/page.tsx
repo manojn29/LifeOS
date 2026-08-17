@@ -18,9 +18,11 @@ import {
   BookOpen,
   Lightbulb,
   Globe,
+  Pin,
 } from 'lucide-react';
-import { AIReasoningMode } from '@/types/database';
+import { AIReasoningMode, PinnedChat } from '@/types/database';
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer';
+import { PinnedChatsDrawer } from '@/components/chat/pinned-chats-drawer';
 
 interface Citation {
   id: string;
@@ -108,6 +110,10 @@ export default function ChatPage() {
   const [offset, setOffset] = useState(0);
   const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
 
+  // Pinned Chats State
+  const [pinnedChats, setPinnedChats] = useState<PinnedChat[]>([]);
+  const [isPinnedDrawerOpen, setIsPinnedDrawerOpen] = useState(false);
+
   // Date Filter State
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterMode, setFilterMode] = useState<'single' | 'range'>('single');
@@ -124,9 +130,10 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initial Load: Fetch 10 most recent messages
+  // Initial Load: Fetch 10 most recent messages & pinned chats
   useEffect(() => {
     fetchChatHistory({ limit: 10, offset: 0 });
+    fetchPinnedChats();
   }, []);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -300,6 +307,106 @@ export default function ChatPage() {
     fetchChatHistory({ limit: 10, offset: 0 });
   };
 
+  async function fetchPinnedChats() {
+    try {
+      const res = await fetch('/api/chat/pins');
+      const data = await res.json();
+      if (data.pins && Array.isArray(data.pins)) {
+        setPinnedChats(data.pins);
+      }
+    } catch (err) {
+      console.error('Failed to load pinned chats:', err);
+    }
+  }
+
+  const isMessagePinned = (msgId: string, content?: string) => {
+    return pinnedChats.some(
+      (p) => p.message_id === msgId || (content && p.response === content)
+    );
+  };
+
+  const handleTogglePin = async (assistantMsg: Message) => {
+    const existingPin = pinnedChats.find(
+      (p) => p.message_id === assistantMsg.id || p.response === assistantMsg.content
+    );
+
+    if (existingPin) {
+      // Optimistic unpin
+      setPinnedChats((prev) => prev.filter((p) => p.id !== existingPin.id));
+      try {
+        await fetch(
+          `/api/chat/pins?id=${existingPin.id}&messageId=${assistantMsg.id}`,
+          { method: 'DELETE' }
+        );
+      } catch (err) {
+        console.error('Failed to unpin:', err);
+        fetchPinnedChats();
+      }
+    } else {
+      // Find preceding user question
+      const msgIndex = messages.findIndex((m) => m.id === assistantMsg.id);
+      let question = 'Conversation';
+      if (msgIndex > 0) {
+        for (let i = msgIndex - 1; i >= 0; i--) {
+          if (messages[i].role === 'user') {
+            question = messages[i].content;
+            break;
+          }
+        }
+      }
+
+      // Optimistic pin
+      const tempPin: PinnedChat = {
+        id: crypto.randomUUID(),
+        user_id: '',
+        question,
+        response: assistantMsg.content,
+        mode: assistantMsg.mode,
+        provider: assistantMsg.provider,
+        message_id: assistantMsg.id,
+        created_at: new Date().toISOString(),
+      };
+      setPinnedChats((prev) => [tempPin, ...prev]);
+
+      try {
+        const res = await fetch('/api/chat/pins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question,
+            response: assistantMsg.content,
+            mode: assistantMsg.mode,
+            provider: assistantMsg.provider,
+            messageId: assistantMsg.id,
+          }),
+        });
+        const data = await res.json();
+        if (data.pin) {
+          setPinnedChats((prev) => [
+            data.pin,
+            ...prev.filter((p) => p.id !== tempPin.id),
+          ]);
+        }
+      } catch (err) {
+        console.error('Failed to save pin:', err);
+        fetchPinnedChats();
+      }
+    }
+  };
+
+  const handleUnpinFromDrawer = async (pinId: string, messageId?: string | null) => {
+    setPinnedChats((prev) => prev.filter((p) => p.id !== pinId));
+    try {
+      await fetch(
+        `/api/chat/pins?id=${pinId}${messageId ? `&messageId=${messageId}` : ''}`,
+        { method: 'DELETE' }
+      );
+    } catch (err) {
+      console.error('Failed to unpin from drawer:', err);
+      fetchPinnedChats();
+    }
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
     if (!query || isSending) return;
@@ -402,6 +509,18 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsPinnedDrawerOpen(true)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                pinnedChats.length > 0
+                  ? 'bg-amber-950/60 text-amber-300 border-amber-700/50 hover:bg-amber-900/60'
+                  : 'bg-zinc-900 hover:bg-zinc-850 text-zinc-300 border-zinc-800'
+              }`}
+            >
+              <Pin className={`w-3.5 h-3.5 ${pinnedChats.length > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
+              <span>Pinned ({pinnedChats.length})</span>
+            </button>
+
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border ${
@@ -582,15 +701,43 @@ export default function ChatPage() {
                       : 'glass-panel text-zinc-200 border border-zinc-800'
                   }`}
                 >
-                  {/* Meta info header for AI response */}
-                  {!isUser && (msg.mode || msg.provider) && (
-                    <div className="flex items-center gap-2 mb-2">
-                      {getModeBadge(msg.mode)}
-                      {msg.provider && (
-                        <span className="text-[10px] font-mono text-zinc-500 uppercase">
-                          via {msg.provider}
+                  {/* Meta info & Pin header for AI response */}
+                  {!isUser && (
+                    <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-zinc-800/50">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getModeBadge(msg.mode)}
+                        {msg.provider && (
+                          <span className="text-[10px] font-mono text-zinc-500 uppercase">
+                            via {msg.provider}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePin(msg)}
+                        title={
+                          isMessagePinned(msg.id, msg.content)
+                            ? 'Unpin this Q&A'
+                            : 'Pin this Q&A'
+                        }
+                        className={`px-2 py-0.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                          isMessagePinned(msg.id, msg.content)
+                            ? 'bg-amber-950/70 border-amber-600/60 text-amber-300 shadow-sm'
+                            : 'border-zinc-800/80 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                        }`}
+                      >
+                        <Pin
+                          className={`w-3 h-3 ${
+                            isMessagePinned(msg.id, msg.content)
+                              ? 'fill-amber-400 text-amber-400'
+                              : ''
+                          }`}
+                        />
+                        <span>
+                          {isMessagePinned(msg.id, msg.content) ? 'Pinned' : 'Pin'}
                         </span>
-                      )}
+                      </button>
                     </div>
                   )}
 
@@ -763,6 +910,14 @@ export default function ChatPage() {
           <Send className="w-4 h-4" />
         </button>
       </form>
+
+      {/* Pinned Conversations Drawer */}
+      <PinnedChatsDrawer
+        isOpen={isPinnedDrawerOpen}
+        onClose={() => setIsPinnedDrawerOpen(false)}
+        pinnedChats={pinnedChats}
+        onUnpin={handleUnpinFromDrawer}
+      />
     </div>
   );
 }

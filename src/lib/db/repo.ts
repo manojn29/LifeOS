@@ -1,5 +1,5 @@
 import { createServerSupabaseClient, getAuthenticatedUser } from './supabase-server';
-import { JournalEntry, TaskList, Task, UserSettings, AIConversation, ConversationMessage, MatchedJournalEntry, AIReasoningMode, WeeklyDigest } from '@/types/database';
+import { JournalEntry, TaskList, Task, UserSettings, AIConversation, ConversationMessage, MatchedJournalEntry, AIReasoningMode, WeeklyDigest, PinnedChat } from '@/types/database';
 
 // In-memory local fallback store for seamless zero-config local testing and offline readiness
 const globalStore = globalThis as unknown as {
@@ -12,6 +12,7 @@ const globalStore = globalThis as unknown as {
     conversations: Map<string, AIConversation[]>;
     messages: Map<string, ConversationMessage[]>;
     digests: Map<string, WeeklyDigest[]>;
+    pinnedChats: Map<string, PinnedChat[]>;
   };
 };
 
@@ -25,6 +26,7 @@ if (!globalStore._lifeos_memoryStore) {
     conversations: new Map<string, AIConversation[]>(),
     messages: new Map<string, ConversationMessage[]>(),
     digests: new Map<string, WeeklyDigest[]>(),
+    pinnedChats: new Map<string, PinnedChat[]>(),
   };
 }
 
@@ -831,5 +833,93 @@ export const dbRepo = {
     }
 
     return memoryStore.digests.get(userId) || [];
+  },
+
+  // PINNED CHATS
+  async getPinnedChats(userId: string): Promise<PinnedChat[]> {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from('pinned_chats')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) return data as PinnedChat[];
+    } catch (err) {
+      console.warn('Supabase getPinnedChats fallback:', err);
+    }
+
+    return memoryStore.pinnedChats.get(userId) || [];
+  },
+
+  async savePinnedChat(
+    userId: string,
+    params: {
+      question: string;
+      response: string;
+      mode?: AIReasoningMode | null;
+      provider?: string | null;
+      messageId?: string | null;
+    }
+  ): Promise<PinnedChat> {
+    const newPin: PinnedChat = {
+      id: crypto.randomUUID(),
+      user_id: userId,
+      question: params.question,
+      response: params.response,
+      mode: params.mode || null,
+      provider: params.provider || null,
+      message_id: params.messageId || null,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from('pinned_chats')
+        .insert({
+          id: newPin.id,
+          user_id: userId,
+          question: newPin.question,
+          response: newPin.response,
+          mode: newPin.mode,
+          provider: newPin.provider,
+          message_id: newPin.message_id,
+          created_at: newPin.created_at,
+        })
+        .select()
+        .single();
+
+      if (!error && data) return data as PinnedChat;
+    } catch (err) {
+      console.warn('Supabase savePinnedChat fallback:', err);
+    }
+
+    const pins = memoryStore.pinnedChats.get(userId) || [];
+    pins.unshift(newPin);
+    memoryStore.pinnedChats.set(userId, pins);
+    return newPin;
+  },
+
+  async deletePinnedChat(userId: string, idOrMessageId: string): Promise<boolean> {
+    try {
+      const supabase = await createServerSupabaseClient();
+      // Try deleting by id or message_id
+      const { error } = await supabase
+        .from('pinned_chats')
+        .delete()
+        .eq('user_id', userId)
+        .or(`id.eq.${idOrMessageId},message_id.eq.${idOrMessageId}`);
+
+      if (!error) return true;
+    } catch (err) {
+      console.warn('Supabase deletePinnedChat fallback:', err);
+    }
+
+    const pins = memoryStore.pinnedChats.get(userId) || [];
+    const updated = pins.filter((p) => p.id !== idOrMessageId && p.message_id !== idOrMessageId);
+    memoryStore.pinnedChats.set(userId, updated);
+    return true;
   },
 };

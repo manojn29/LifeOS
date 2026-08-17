@@ -178,7 +178,24 @@ BEGIN
     -- weekly_digests
     DROP POLICY IF EXISTS "weekly_digests_owner_access" ON public.weekly_digests;
     CREATE POLICY "weekly_digests_owner_access" ON public.weekly_digests FOR ALL USING (auth.uid() = user_id);
+
+    -- pinned_chats
+    DROP POLICY IF EXISTS "pinned_chats_owner_access" ON public.pinned_chats;
+    CREATE POLICY "pinned_chats_owner_access" ON public.pinned_chats FOR ALL USING (auth.uid() = user_id);
 END $$;
+
+-- 8c. PINNED CHATS TABLE (Pinned Question + Response pairs)
+CREATE TABLE IF NOT EXISTS public.pinned_chats (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    question TEXT NOT NULL,
+    response TEXT NOT NULL,
+    mode VARCHAR(50),
+    provider VARCHAR(50),
+    message_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_pinned_chats_user ON public.pinned_chats(user_id, created_at DESC);
 
 -- 8b. WEEKLY DIGESTS TABLE
 CREATE TABLE IF NOT EXISTS public.weekly_digests (
