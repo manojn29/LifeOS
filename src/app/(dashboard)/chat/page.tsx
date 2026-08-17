@@ -24,6 +24,7 @@ import {
 import { AIReasoningMode, PinnedChat } from '@/types/database';
 import { MarkdownRenderer } from '@/components/chat/markdown-renderer';
 import { PinnedChatsDrawer } from '@/components/chat/pinned-chats-drawer';
+import { VoiceRecorderButton } from '@/components/ui/voice-recorder-button';
 
 interface Citation {
   id: string;
@@ -958,6 +959,12 @@ export default function ChatPage() {
               : 'Ask your journal or tell AI to manage tasks...'
           }
           className="flex-1 bg-transparent border-0 px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none text-sm md:text-base"
+        />
+        <VoiceRecorderButton
+          buttonVariant="icon"
+          onTranscribed={(text) => {
+            setInput((prev) => (prev ? `${prev} ${text}` : text));
+          }}
         />
         <button
           type="submit"

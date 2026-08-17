@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Sparkles, Calendar, Trash2, Edit3, Check, Eye, EyeOff, BookOpen, Clock } from 'lucide-react';
 import { JournalEntry } from '@/types/database';
 import { localStore } from '@/lib/cache/local-store';
+import { VoiceRecorderButton } from '@/components/ui/voice-recorder-button';
 
 export default function JournalPage() {
   const [rawText, setRawText] = useState('');
@@ -153,7 +154,15 @@ export default function JournalPage() {
               year: 'numeric',
             })}
           </span>
-          <span>{wordCount} words</span>
+          <div className="flex items-center gap-3">
+            <span>{wordCount} words</span>
+            <VoiceRecorderButton
+              buttonVariant="pill"
+              onTranscribed={(text) => {
+                setRawText((prev) => (prev ? `${prev} ${text}` : text));
+              }}
+            />
+          </div>
         </div>
 
         <textarea
@@ -287,31 +296,39 @@ export default function JournalPage() {
                       rows={4}
                       className="w-full bg-zinc-900/90 border border-zinc-700 rounded-xl p-3 text-zinc-100 focus:outline-none focus:border-emerald-500 text-sm"
                     />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setEditingId(null)}
-                        disabled={isUpdatingId === entry.id}
-                        className="px-3.5 py-1.5 rounded-xl text-xs text-zinc-400 hover:bg-zinc-800 cursor-pointer disabled:opacity-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleUpdate(entry.id)}
-                        disabled={isUpdatingId === entry.id || !editText.trim()}
-                        className="px-3.5 py-1.5 rounded-xl text-xs bg-emerald-500 text-zinc-950 font-semibold hover:bg-emerald-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shadow-md shadow-emerald-950/30"
-                      >
-                        {isUpdatingId === entry.id ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
-                            <span>Re-cleaning with AI...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Save & Re-clean</span>
-                          </>
-                        )}
-                      </button>
+                    <div className="flex justify-between items-center gap-2">
+                      <VoiceRecorderButton
+                        buttonVariant="pill"
+                        onTranscribed={(text) => {
+                          setEditText((prev) => (prev ? `${prev} ${text}` : text));
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingId(null)}
+                          disabled={isUpdatingId === entry.id}
+                          className="px-3.5 py-1.5 rounded-xl text-xs text-zinc-400 hover:bg-zinc-800 cursor-pointer disabled:opacity-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleUpdate(entry.id)}
+                          disabled={isUpdatingId === entry.id || !editText.trim()}
+                          className="px-3.5 py-1.5 rounded-xl text-xs bg-emerald-500 text-zinc-950 font-semibold hover:bg-emerald-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shadow-md shadow-emerald-950/30"
+                        >
+                          {isUpdatingId === entry.id ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+                              <span>Re-cleaning with AI...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Save & Re-clean</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
